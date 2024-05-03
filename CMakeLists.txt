@@ -69,6 +69,11 @@ if(PASTA_BLOCK_TREE_BUILD_EXAMPLES)
     pasta_block_tree)
 endif()
 
+add_executable(measure
+measure/readout.cpp)
+target_link_libraries(measure
+pasta_block_tree)
+
 set(LIBSAIS_USE_OPENMP ON CACHE BOOL "Use OpenMP for parallelization of libsais" FORCE)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/extlib/libsais)
 
