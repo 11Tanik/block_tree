@@ -401,12 +401,14 @@ public:
 
   void compress_leaves() {
     compress_map_.resize(256, 0);
+	decompress_map_.resize(256, 0);
     for (size_t i = 0; i < this->leaves_.size(); ++i) {
       compress_map_[this->leaves_[i]] = 1;
     }
     for (size_t i = 0, cur_val = 0; i < this->compress_map_.size(); ++i) {
       size_t tmp = compress_map_[i];
       compress_map_[i] = cur_val;
+	  decompress_map_[cur_val] = i;
       cur_val += tmp;
     }
 
