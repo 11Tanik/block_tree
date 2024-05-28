@@ -1,1 +1,8 @@
 /build
+.vscode/
+dblp.xml.50MB
+debug/
+dna.50MB
+english.50MB
+proteins.50MB
+sources.50MB
