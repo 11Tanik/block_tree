@@ -91,7 +91,7 @@ public:
       off = off % block_size;
       blk_pointer = lvl_rs.rank1(blk_pointer) * tau_ + child;
     }
-    return compressed_leaves_[blk_pointer * leaf_size + off];
+    return decompress_map_[compressed_leaves_[blk_pointer * leaf_size + off]];
   };
 
   int64_t select(input_type c, size_type j) {
