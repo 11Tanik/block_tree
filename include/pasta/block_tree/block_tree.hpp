@@ -31,6 +31,7 @@
 #include <pasta/bit_vector/support/rank_select.hpp>
 #include <pasta/bit_vector/support/wide_rank.hpp>
 #include <pasta/bit_vector/support/wide_rank_select.hpp>
+#include <pasta/block_tree/utils/huffman.hpp>
 #include <sdsl/int_vector.hpp>
 #include <vector>
 
@@ -55,9 +56,14 @@ public:
   std::vector<int64_t> block_per_lvl_;
   std::vector<input_type> leaves_;
 
+  bool huffman_encoded_leaves = false;
+
   std::vector<uint8_t> compress_map_;
   std::vector<uint8_t> decompress_map_;
   sdsl::int_vector<> compressed_leaves_;
+
+  std::vector<size_t> huffman_leaf_starts;
+  pasta::HuffmanCode<input_type, size_type>* huffman_compressed_leaves;
 
   std::unordered_map<input_type, size_type> chars_index_;
   std::vector<input_type> chars_;
@@ -398,6 +404,15 @@ public:
 
     return space_usage;
   };
+
+  void huffman_compress_leaves() {
+    assert(huffman_compress_leaves);
+
+	this->huffman_compressed_leaves = new HuffmanCode(this->leaves_);
+
+	leaves_.resize(0);
+    leaves_.shrink_to_fit();
+  }
 
   void compress_leaves() {
     compress_map_.resize(256, 0);

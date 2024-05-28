@@ -61,14 +61,7 @@ void measure_for_text(std::string filename, int32_t tau, int32_t max_leaf_length
 	if (check_correct) {
 		if (!short_output) std::cout << "Checking correctness ...\n";
 		for (size_t i = 0; i < text.size(); ++i) {
-
-			uint8_t remapped_letter = bt->access(i);
-
-			assert(remapped_letter < bt->decompress_map_.size());
-
-			uint8_t decompressed_letter = bt->decompress_map_[remapped_letter];
-
-			assert(decompressed_letter == text[i]);
+			assert(bt->access(i) == text[i]);
 		}
 		if (!short_output) std::cout << "... Done\n";
 	}
