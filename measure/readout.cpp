@@ -7,7 +7,11 @@
 #include <iostream>
 #include <random>
 #include <fstream>
+#include <iostream>
+#include <bitset>
 #include <assert.h>
+
+#include <pasta/block_tree/utils/huffman.hpp>
 
 #include <pasta/block_tree/construction/block_tree_lpf.hpp>
 
@@ -124,6 +128,7 @@ void measure_for_text(std::string filename, int32_t tau, int32_t max_leaf_length
 int32_t main()
 {
 
+	/*
 	std::string filename = "./english.5MB";
 
 	std::vector<std::string> files;
@@ -141,6 +146,41 @@ int32_t main()
 			}
 		}
 	}
+	*/
+
+	std::string s = "hello world and people inside it, how are you doing are you very well";
+	std::vector<uint8_t> text(s.begin(), s.end());
+
+	size_t sample_pos = 4;
+
+	pasta::HuffmanCode<uint8_t,size_t>* code = new pasta::HuffmanCode<uint8_t,size_t>(text,sample_pos);
+
+	std::cout << "Decode Table: \n";
+	for (size_t i = 0; i < code->decode_table.size(); i++) {
+		std::cout << "Index " << i << ": " << (int) code->decode_table[i].letter << ", " << (int) code->decode_table[i].code_word_length << "\n";
+	}
+
+	std::cout << "Text: ";
+	for (size_t i = 0; i < text.size(); i++) {
+		std::cout << (int) text[i] << " ";
+	}
+	std::cout << "\n";
+
+	std::cout << "Decode Function: ";
+	std::vector<uint8_t>* output = code->decode(0, text.size());
+	for (size_t i = 0; i < output->size(); i++) {
+		std::cout << (int) output->at(i) << " ";
+		assert(text[i] == output->at(i));
+	}
+	std::cout << "\n";
+
+	std::vector<uint8_t>* shorter = code->access(8, 4);
+
+	std::cout << "sampled at " << 2*sample_pos << ": ";
+	for (size_t i = 0; i < shorter->size(); i++) {
+		std::cout << (int) shorter->at(i) << " ";
+	}
+	std::cout << "\n";
   
   return 0;
 }
