@@ -13,11 +13,14 @@ template <typename input_type, typename size_type> class HuffmanCode {
 public:
 
 	uint8_t max_code_length;
-	size_type bit_size;
+	size_t bit_size;
 	std::vector<uint64_t> bits;
 
 	size_type sample_pos;
 	std::vector<size_type> samples;
+
+	// only to test remove later
+	size_t max_sampled_span = 0;
 	
 	class HuffmanEntry {
 	public:
@@ -66,7 +69,7 @@ public:
 		encode_table.resize(256,0);
 		std::fill(encode_table.begin(), encode_table.end(), 0);
 
-		for (size_type i = 0; i < text.size(); i++) {
+		for (size_t i = 0; i < text.size(); i++) {
 			assert(text[i] < 256); // only small alphabets
 			encode_table[text[i]]++;
 		}
@@ -120,17 +123,24 @@ public:
 		// write bits
 
 		bits.push_back((int64_t) 0);
-		size_type current_block = 0;
-		size_type current_bit_offset = 0;
+		size_t current_block = 0;
+		size_t current_bit_offset = 0;
 
-		for (size_type i = 0; i < text.size(); i++) {
+		for (size_t i = 0; i < text.size(); i++) {
 
 			if (sample_pos > 0 && (i % sample_pos == 0)) {
 				samples.push_back((bits.size()-1)*64 + current_bit_offset);
+
+				// test code
+				if (samples.size() > 1) {
+					size_t sampled_span = samples[samples.size()-1] - samples[samples.size()-2];
+					if (sampled_span > max_sampled_span) max_sampled_span = sampled_span;
+				}
+
 			}
 
 			uint64_t code = encode_table[text[i]];
-			size_type length = decode_table[code].code_word_length;
+			size_t length = decode_table[code].code_word_length;
 
 			uint64_t left_code = code << (64 - max_code_length);
 
@@ -179,14 +189,14 @@ public:
 
 	}
 
-	std::vector<input_type>* decode(size_type start_index, size_type num_elements) {
+	std::vector<input_type>* decode(size_t start_index, size_type num_elements) {
 
 		if (start_index >= bit_size) throw std::out_of_range("start index >= bit_size");
 		
 		std::vector<input_type>* decoded = new std::vector<input_type>();
 
-		size_type block_index = start_index / 64;
-		size_type bit_index = start_index % 64;
+		size_t block_index = start_index / 64;
+		size_t bit_index = start_index % 64;
 
 		while (num_elements > 0) {
 			if (block_index*64 + bit_index >= bit_size) throw std::out_of_range("decoding past end");

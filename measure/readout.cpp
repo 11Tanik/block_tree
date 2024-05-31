@@ -119,7 +119,19 @@ void measure_for_text(std::string filename, int32_t tau, int32_t max_leaf_length
 		std::cout << "========================\n";
 	}
 
-	std::cout << filename << ", " << tau << ", " << max_leaf_length << ", " << total_space << ", " << leave_space << ", " << optimal_entropy_encoding << ", " << final_space << "\n";
+	bt->huffman_compress_leaves();
+
+	if (check_correct) {
+		for (size_t i = 0; i < text.size(); ++i) {
+			assert(bt->access(i) == text[i]);
+			if (bt->access(i) != text[i]) throw std::runtime_error("huffman block tree failed check");
+		}
+	}
+
+	int64_t praxis_huffman_space = bt->print_space_usage();
+	int64_t praxis_optimal_huffman = praxis_huffman_space - bt->huffman_compressed_leaves->print_space_usage() + bt->huffman_compressed_leaves->print_space_usage_without_sampels();
+
+	std::cout << filename << ", " << tau << ", " << max_leaf_length << ", " << total_space << ", " << leave_space << ", " << optimal_entropy_encoding << ", " << final_space << ", " << praxis_huffman_space << ", " << praxis_optimal_huffman << ", " << bt->huffman_compressed_leaves->max_sampled_span << ", " << bt->huffman_compressed_leaves->decode_table.size() << "\n";
 
   	// Clean-up
   	delete bt;
@@ -128,26 +140,23 @@ void measure_for_text(std::string filename, int32_t tau, int32_t max_leaf_length
 int32_t main()
 {
 
-	/*
-	std::string filename = "./english.5MB";
-
 	std::vector<std::string> files;
-	files.push_back("./english.50MB");
+	//files.push_back("./english.50MB");
 	files.push_back("./dna.50MB");
-	files.push_back("./dblp.xml.50MB");
-	files.push_back("./proteins.50MB");
-	files.push_back("./sources.50MB");
+	//files.push_back("./dblp.xml.50MB");
+	//files.push_back("./proteins.50MB");
+	//files.push_back("./sources.50MB");
 	
-	std::cout << "text, tau, max_leaf_size, total space, leaf space, entropy encoded leaf space, total entropy encoded space\n";
-	for (int32_t maxLS = 1; maxLS <= 64; maxLS *= 2) {
+	std::cout << "text, tau, max_leaf_size, total space, leaf space, entropy encoded leaf space, total entropy encoded space, current implementation space, achievable space, longest huffman encoded leaf, #elements in decode_table\n";
+	for (int32_t maxLS = 2; maxLS <= 32; maxLS *= 2) {
 		for (int32_t tau = 2; tau <= 8; tau *= 2) {
 			for (auto s : files) {
 				measure_for_text(s, tau, maxLS, true);
 			}
 		}
 	}
-	*/
-
+	
+	/*
 	std::ifstream file("./dna.50MB");
 	std::ostringstream ss;
 	ss << file.rdbuf();
@@ -169,6 +178,7 @@ int32_t main()
 	for (size_t i = 0; i < text.size(); i++) {
 		if (text[i] != output->at(i)) throw std::runtime_error("huffman failed");
 	}
+	*/
   
   return 0;
 }

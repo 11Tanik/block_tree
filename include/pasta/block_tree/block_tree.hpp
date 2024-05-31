@@ -63,7 +63,7 @@ public:
   sdsl::int_vector<> compressed_leaves_;
 
   std::vector<size_t> huffman_leaf_starts;
-  pasta::HuffmanCode<input_type, size_type>* huffman_compressed_leaves;
+  pasta::HuffmanCode<input_type, size_type>* huffman_compressed_leaves = nullptr;
 
   std::unordered_map<input_type, size_type> chars_index_;
   std::vector<input_type> chars_;
@@ -97,7 +97,11 @@ public:
       off = off % block_size;
       blk_pointer = lvl_rs.rank1(blk_pointer) * tau_ + child;
     }
-    return decompress_map_[compressed_leaves_[blk_pointer * leaf_size + off]];
+	if (huffman_encoded_leaves) {
+		return huffman_compressed_leaves->access(blk_pointer*leaf_size,leaf_size)->at(off);
+	} else {
+    	return decompress_map_[compressed_leaves_[blk_pointer * leaf_size + off]];
+	}
   };
 
   int64_t select(input_type c, size_type j) {
@@ -401,17 +405,26 @@ public:
     // space_usage += leaves_.size() * sizeof(input_type);
     space_usage += sdsl::size_in_bytes(compressed_leaves_);
     space_usage += compress_map_.size();
+	space_usage += decompress_map_.size();
+
+	if (huffman_compressed_leaves != nullptr) space_usage += huffman_compressed_leaves->print_space_usage();
 
     return space_usage;
   };
 
   void huffman_compress_leaves() {
-    assert(huffman_compress_leaves);
+    huffman_encoded_leaves = true;
 
-	this->huffman_compressed_leaves = new HuffmanCode(this->leaves_);
+	leaves_.resize(compressed_leaves_.size());
+
+	std::transform(compressed_leaves_.begin(), compressed_leaves_.end(), leaves_.begin(), [this](input_type c) {return this->decompress_map_[c];});
+
+	this->huffman_compressed_leaves = new HuffmanCode(this->leaves_, leaf_size);
 
 	leaves_.resize(0);
     leaves_.shrink_to_fit();
+
+	compressed_leaves_.resize(0);
   }
 
   void compress_leaves() {
