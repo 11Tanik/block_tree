@@ -3,6 +3,7 @@
 #include <vector>
 #include <queue>
 #include <assert.h>
+#include <bitset>
 
 // TODO possibly change code_length to missing_bits
 
@@ -12,7 +13,7 @@ template <typename input_type, typename size_type> class HuffmanCode {
 public:
 
 	uint8_t max_code_length;
-	size_type bit_length;
+	size_type bit_size;
 	std::vector<uint64_t> bits;
 
 	size_type sample_pos;
@@ -118,7 +119,8 @@ public:
 
 		// write bits
 
-		bits.push_back(0);
+		bits.push_back((int64_t) 0);
+		size_type current_block = 0;
 		size_type current_bit_offset = 0;
 
 		for (size_type i = 0; i < text.size(); i++) {
@@ -132,16 +134,24 @@ public:
 
 			uint64_t left_code = code << (64 - max_code_length);
 
-			bits.back() |= left_code >> current_bit_offset;
+			uint64_t to_write = left_code >> current_bit_offset;
+
+			if (current_bit_offset == 64) to_write = 0;
+
+			bits[current_block] |= to_write;
 
 			if (64-current_bit_offset < length) {
-				bits.push_back(0);
-				bits.back() |= left_code << (64 - current_bit_offset);
+				bits.push_back((int64_t) 0);
+				current_block++;
+				to_write = left_code << (64-current_bit_offset);
+				bits[current_block] |= to_write;
 				current_bit_offset = length - (64-current_bit_offset);
 			} else {
 				current_bit_offset += length;
 			}
 		}
+
+		bit_size = (bits.size()-1)*64 + current_bit_offset;
 
 		// Done
 	}
@@ -170,6 +180,8 @@ public:
 	}
 
 	std::vector<input_type>* decode(size_type start_index, size_type num_elements) {
+
+		if (start_index >= bit_size) throw std::out_of_range("start index >= bit_size");
 		
 		std::vector<input_type>* decoded = new std::vector<input_type>();
 
@@ -177,13 +189,16 @@ public:
 		size_type bit_index = start_index % 64;
 
 		while (num_elements > 0) {
+			if (block_index*64 + bit_index >= bit_size) throw std::out_of_range("decoding past end");
+
 			uint64_t block = bits[block_index];
 			uint64_t symbol = block << bit_index;
 
 			uint64_t next_block = 0;
 			if (block_index < bits.size()-1) next_block = bits[block_index+1];
 
-			symbol |= next_block >> (64-bit_index);
+			// only shift when necessary to handle undefined behaviour
+			if (bit_index != 0) symbol |= next_block >> (64-bit_index);
 
 			symbol = symbol >> (64 - max_code_length);
 
@@ -200,6 +215,8 @@ public:
 	}
 
 	std::vector<input_type>* access(size_type index, size_type num_elements) {
+		if (sample_pos <= 0) throw std::runtime_error("Cannot call HuffmanCode::access with a sample_pos of 0.");
+
 		size_type closest_sample = index / sample_pos;
 
 		size_type extended_num_elements = num_elements + (index % sample_pos);
@@ -212,7 +229,22 @@ public:
 	}
 
 	int64_t print_space_usage() {
-		return -1;
+		int64_t sum = 0;
+		sum += sizeof(max_code_length);
+		sum += sizeof(bit_size);
+		sum += 8*bits.size();
+
+		sum += sizeof(sample_pos);
+		sum += sizeof(size_type)*samples.size();
+
+		sum += 8*encode_table.size();
+		sum += sizeof(HuffmanEntry)*decode_table.size();
+
+		return sum;
+	}
+
+	int64_t print_space_usage_without_sampels() {
+		return print_space_usage() - sizeof(sample_pos) - sizeof(size_type)*samples.size();
 	}
 
 };

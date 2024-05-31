@@ -148,39 +148,27 @@ int32_t main()
 	}
 	*/
 
-	std::string s = "hello world and people inside it, how are you doing are you very well";
+	std::ifstream file("./dna.50MB");
+	std::ostringstream ss;
+	ss << file.rdbuf();
+	const std::string& s = ss.str();
 	std::vector<uint8_t> text(s.begin(), s.end());
 
-	size_t sample_pos = 4;
+	size_t sample_pos = 0;
 
 	pasta::HuffmanCode<uint8_t,size_t>* code = new pasta::HuffmanCode<uint8_t,size_t>(text,sample_pos);
 
-	std::cout << "Decode Table: \n";
-	for (size_t i = 0; i < code->decode_table.size(); i++) {
-		std::cout << "Index " << i << ": " << (int) code->decode_table[i].letter << ", " << (int) code->decode_table[i].code_word_length << "\n";
+	for(size_t i = 0; i < code->decode_table.size(); i++) {
+		std::cout << "Index " << i << ": " << code->decode_table[i].letter << " with bit length " << (int) code->decode_table[i].code_word_length << "\n";
 	}
 
-	std::cout << "Text: ";
-	for (size_t i = 0; i < text.size(); i++) {
-		std::cout << (int) text[i] << " ";
-	}
-	std::cout << "\n";
+	std::cout << "Space of HuffmanCode without sampels: " << code->print_space_usage_without_sampels() << "\n";
 
-	std::cout << "Decode Function: ";
 	std::vector<uint8_t>* output = code->decode(0, text.size());
-	for (size_t i = 0; i < output->size(); i++) {
-		std::cout << (int) output->at(i) << " ";
-		assert(text[i] == output->at(i));
-	}
-	std::cout << "\n";
 
-	std::vector<uint8_t>* shorter = code->access(8, 4);
-
-	std::cout << "sampled at " << 2*sample_pos << ": ";
-	for (size_t i = 0; i < shorter->size(); i++) {
-		std::cout << (int) shorter->at(i) << " ";
+	for (size_t i = 0; i < text.size(); i++) {
+		if (text[i] != output->at(i)) throw std::runtime_error("huffman failed");
 	}
-	std::cout << "\n";
   
   return 0;
 }
