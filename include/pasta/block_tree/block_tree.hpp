@@ -20,6 +20,9 @@
 
 #pragma once
 
+#include <cstdio>
+#include <cstdlib>
+#include <filesystem>
 #include <iostream>
 #include <omp.h>
 #include <pasta/bit_vector/bit_vector.hpp>
@@ -33,6 +36,7 @@
 #include <pasta/bit_vector/support/wide_rank_select.hpp>
 #include <pasta/block_tree/utils/huffman.hpp>
 #include <sdsl/int_vector.hpp>
+#include <sdsl/wavelet_trees.hpp>
 #include <vector>
 
 namespace pasta {
@@ -64,6 +68,8 @@ public:
 
   std::vector<size_t> huffman_leaf_starts;
   pasta::HuffmanCode<input_type, size_type>* huffman_compressed_leaves = nullptr;
+
+  sdsl::wt_huff<sdsl::rrr_vector<63>> wavelet_leaves;
 
   std::unordered_map<input_type, size_type> chars_index_;
   std::vector<input_type> chars_;
@@ -98,7 +104,8 @@ public:
       blk_pointer = lvl_rs.rank1(blk_pointer) * tau_ + child;
     }
 	if (huffman_encoded_leaves) {
-		return huffman_compressed_leaves->access(blk_pointer*leaf_size,leaf_size)->at(off);
+		//return huffman_compressed_leaves->access(blk_pointer*leaf_size,leaf_size)->at(off);
+		return wavelet_leaves[blk_pointer*leaf_size + off];
 	} else {
     	return decompress_map_[compressed_leaves_[blk_pointer * leaf_size + off]];
 	}
@@ -413,18 +420,32 @@ public:
   };
 
   void huffman_compress_leaves() {
+	if (huffman_encoded_leaves) return; // already done
+	if (sizeof(input_type) != 1) throw std::runtime_error("Huffman compression for leaves not yet implemented for non-byte alphabets.");
     huffman_encoded_leaves = true;
+
+	char filename[] = "/tmp/wavelet_tree_leaves_XXXXXX";
+	int fd = mkstemp(filename);
+	if (fd == -1) throw std::runtime_error("Could not create temporary file.");
+
+	std::cout << "Created tmp file at " << filename << "\n";
 
 	leaves_.resize(compressed_leaves_.size());
 
 	std::transform(compressed_leaves_.begin(), compressed_leaves_.end(), leaves_.begin(), [this](input_type c) {return this->decompress_map_[c];});
 
-	this->huffman_compressed_leaves = new HuffmanCode(this->leaves_, leaf_size);
+	compressed_leaves_.resize(0);
 
+	for(size_t i = 0; i < leaves_.size(); i++) {
+		ssize_t written = write(fd, &leaves_.at(i), 1);
+		if (written != 1) throw std::runtime_error("Error writting file.");
+	}
 	leaves_.resize(0);
     leaves_.shrink_to_fit();
+	close(fd);
 
-	compressed_leaves_.resize(0);
+	construct(wavelet_leaves, std::string(filename), 1);
+	//this->huffman_compressed_leaves = new HuffmanCode(this->leaves_, leaf_size);
   }
 
   void compress_leaves() {

@@ -10,12 +10,11 @@
 #include <iostream>
 #include <bitset>
 #include <assert.h>
-
 #include <pasta/block_tree/utils/huffman.hpp>
-
 #include <pasta/block_tree/construction/block_tree_lpf.hpp>
+#include <sdsl/wavelet_trees.hpp>
 
-bool check_correct = false;
+bool check_correct = true;
 bool short_output = true;
 
 double calculate_entropy(std::vector<uint8_t> text) {
@@ -129,9 +128,9 @@ void measure_for_text(std::string filename, int32_t tau, int32_t max_leaf_length
 	}
 
 	int64_t praxis_huffman_space = bt->print_space_usage();
-	int64_t praxis_optimal_huffman = praxis_huffman_space - bt->huffman_compressed_leaves->print_space_usage() + bt->huffman_compressed_leaves->print_space_usage_without_sampels();
+	//int64_t praxis_optimal_huffman = praxis_huffman_space - bt->huffman_compressed_leaves->print_space_usage() + bt->huffman_compressed_leaves->print_space_usage_without_sampels();
 
-	std::cout << filename << ", " << tau << ", " << max_leaf_length << ", " << total_space << ", " << leave_space << ", " << optimal_entropy_encoding << ", " << final_space << ", " << praxis_huffman_space << ", " << praxis_optimal_huffman << ", " << bt->huffman_compressed_leaves->max_sampled_span << ", " << bt->huffman_compressed_leaves->decode_table.size() << "\n";
+	std::cout << filename << ", " << tau << ", " << max_leaf_length << ", " << total_space << ", " << leave_space << ", " << optimal_entropy_encoding << ", " << final_space << ", " << praxis_huffman_space << /*", " << praxis_optimal_huffman << ", " << bt->huffman_compressed_leaves->max_sampled_span << ", " << bt->huffman_compressed_leaves->decode_table.size() <<*/ "\n";
 
   	// Clean-up
   	delete bt;
@@ -141,6 +140,7 @@ int32_t main()
 {
 
 	std::vector<std::string> files;
+	//files.push_back("./testtext.txt");
 	//files.push_back("./english.50MB");
 	files.push_back("./dna.50MB");
 	//files.push_back("./dblp.xml.50MB");
@@ -148,8 +148,8 @@ int32_t main()
 	//files.push_back("./sources.50MB");
 	
 	std::cout << "text, tau, max_leaf_size, total space, leaf space, entropy encoded leaf space, total entropy encoded space, current implementation space, achievable space, longest huffman encoded leaf, #elements in decode_table\n";
-	for (int32_t maxLS = 2; maxLS <= 32; maxLS *= 2) {
-		for (int32_t tau = 2; tau <= 8; tau *= 2) {
+	for (int32_t maxLS = 2; maxLS <= 2; maxLS *= 2) {
+		for (int32_t tau = 2; tau <= 2; tau *= 2) {
 			for (auto s : files) {
 				measure_for_text(s, tau, maxLS, true);
 			}
