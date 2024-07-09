@@ -34,7 +34,6 @@
 #include <pasta/bit_vector/support/rank_select.hpp>
 #include <pasta/bit_vector/support/wide_rank.hpp>
 #include <pasta/bit_vector/support/wide_rank_select.hpp>
-#include <pasta/block_tree/utils/huffman.hpp>
 #include <sdsl/int_vector.hpp>
 #include <sdsl/wavelet_trees.hpp>
 #include <vector>
@@ -60,15 +59,11 @@ public:
   std::vector<int64_t> block_per_lvl_;
   std::vector<input_type> leaves_;
 
-  bool huffman_encoded_leaves = false;
-
   std::vector<uint8_t> compress_map_;
   std::vector<uint8_t> decompress_map_;
   sdsl::int_vector<> compressed_leaves_;
 
-  std::vector<size_t> huffman_leaf_starts;
-  pasta::HuffmanCode<input_type, size_type>* huffman_compressed_leaves = nullptr;
-
+  bool leaves_are_wt = false;
   sdsl::wt_huff<sdsl::rrr_vector<63>> wavelet_leaves;
 
   std::unordered_map<input_type, size_type> chars_index_;
@@ -103,8 +98,7 @@ public:
       off = off % block_size;
       blk_pointer = lvl_rs.rank1(blk_pointer) * tau_ + child;
     }
-	if (huffman_encoded_leaves) {
-		//return huffman_compressed_leaves->access(blk_pointer*leaf_size,leaf_size)->at(off);
+	if (leaves_are_wt) {
 		return wavelet_leaves[blk_pointer*leaf_size + off];
 	} else {
     	return decompress_map_[compressed_leaves_[blk_pointer * leaf_size + off]];
@@ -212,6 +206,7 @@ public:
   }
 
   int64_t rank_base(input_type c, size_type index) {
+	throw std::runtime_error("rank_base is currently not supported (why is it even here?)");
     pasta::BitVector &top_level = *block_tree_types_[0];
     auto &top_level_rs = *block_tree_types_rs_[0];
     auto &top_level_ptr = *block_tree_pointers_[0];
@@ -283,16 +278,22 @@ public:
         rank -= remove_prefix;
       }
     }
-    size_type prefix_leaves = blk_pointer - child;
-    for (int j = 0; j < child * leaf_size; j++) {
-      if ((compressed_leaves_)[prefix_leaves * leaf_size + j] ==
-          compress_map_[c])
-        rank++;
-    }
-    for (int j = 0; j <= off; j++) {
-      if ((compressed_leaves_)[blk_pointer * leaf_size + j] == compress_map_[c])
-        rank++;
-    }
+	size_type prefix_leaves = blk_pointer - child;
+	if (leaves_are_wt) {
+		size_type rank_at_offset = wavelet_leaves.rank(blk_pointer * leaf_size + off, c);
+		size_type rank_at_start = wavelet_leaves.rank(prefix_leaves * leaf_size, c);
+		rank += (rank_at_offset - rank_at_start);
+	} else {
+		for (int j = 0; j < child * leaf_size; j++) {
+		if ((compressed_leaves_)[prefix_leaves * leaf_size + j] ==
+			compress_map_[c])
+			rank++;
+		}
+		for (int j = 0; j <= off; j++) {
+		if ((compressed_leaves_)[blk_pointer * leaf_size + j] == compress_map_[c])
+			rank++;
+		}
+	}
     return rank;
   }
 
@@ -362,16 +363,22 @@ public:
         rank -= remove_prefix;
       }
     }
-    size_type prefix_leaves = blk_pointer - child;
-    for (int j = 0; j < child * leaf_size; j++) {
-      if ((compressed_leaves_)[prefix_leaves * leaf_size + j] ==
-          compress_map_[c])
-        rank++;
-    }
-    for (int j = 0; j <= off; j++) {
-      if ((compressed_leaves_)[blk_pointer * leaf_size + j] == compress_map_[c])
-        rank++;
-    }
+	size_type prefix_leaves = blk_pointer - child;
+	if (leaves_are_wt) {
+		size_type rank_at_offset = wavelet_leaves.rank(blk_pointer * leaf_size + off + 1, c);
+		size_type rank_at_start = wavelet_leaves.rank(prefix_leaves * leaf_size, c);
+		rank += (rank_at_offset - rank_at_start);
+	} else {
+		for (int j = 0; j < child * leaf_size; j++) {
+		if ((compressed_leaves_)[prefix_leaves * leaf_size + j] ==
+			compress_map_[c])
+			rank++;
+		}
+		for (int j = 0; j <= off; j++) {
+		if ((compressed_leaves_)[blk_pointer * leaf_size + j] == compress_map_[c])
+			rank++;
+		}
+	}
     return rank;
   };
 
@@ -414,15 +421,17 @@ public:
     space_usage += compress_map_.size();
 	space_usage += decompress_map_.size();
 
-	if (huffman_compressed_leaves != nullptr) space_usage += huffman_compressed_leaves->print_space_usage();
+	if (leaves_are_wt) {
+		space_usage += sdsl::size_in_bytes(wavelet_leaves);
+	}
 
     return space_usage;
   };
 
   void huffman_compress_leaves() {
-	if (huffman_encoded_leaves) return; // already done
+	if (leaves_are_wt) return; // already did
 	if (sizeof(input_type) != 1) throw std::runtime_error("Huffman compression for leaves not yet implemented for non-byte alphabets.");
-    huffman_encoded_leaves = true;
+    leaves_are_wt = true;
 
 	char filename[] = "/tmp/wavelet_tree_leaves_XXXXXX";
 	int fd = mkstemp(filename);
@@ -430,8 +439,8 @@ public:
 
 	std::cout << "Created tmp file at " << filename << "\n";
 
+	// uncompress leaves
 	leaves_.resize(compressed_leaves_.size());
-
 	std::transform(compressed_leaves_.begin(), compressed_leaves_.end(), leaves_.begin(), [this](input_type c) {return this->decompress_map_[c];});
 
 	compressed_leaves_.resize(0);
@@ -445,7 +454,6 @@ public:
 	close(fd);
 
 	construct(wavelet_leaves, std::string(filename), 1);
-	//this->huffman_compressed_leaves = new HuffmanCode(this->leaves_, leaf_size);
   }
 
   void compress_leaves() {
