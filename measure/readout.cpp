@@ -14,7 +14,7 @@
 #include <pasta/block_tree/construction/block_tree_lpf.hpp>
 #include <sdsl/wavelet_trees.hpp>
 
-bool check_correct = true;
+bool check_correct = false;
 
 double calculate_entropy(std::vector<uint8_t> text) {
 	std::vector<int32_t> freqs;
@@ -87,7 +87,7 @@ void measure_for_text(std::string filename, int32_t tau, int32_t max_leaf_length
 
 	int64_t bt_wavelet_space = bt->print_space_usage();
 
-	std::cout << filename << ", " << tau << ", " << max_leaf_length << ", " << bt_base_space << ", " << leaves_space << ", " << optimal_entropy_encoding << ", " << bt_entropy_space << ", " << bt_wavelet_space << /*", " << praxis_optimal_huffman << ", " << bt->huffman_compressed_leaves->max_sampled_span << ", " << bt->huffman_compressed_leaves->decode_table.size() <<*/ "\n";
+	std::cout << filename << ", " << tau << ", " << max_leaf_length << ", " << bt_base_space << ", " << leaves_space << ", " << optimal_entropy_encoding << ", " << bt_entropy_space << ", " << bt_wavelet_space << "\n";
 
   	// Clean-up
   	delete bt;
@@ -97,45 +97,21 @@ int32_t main()
 {
 
 	std::vector<std::string> files;
-	//files.push_back("./testtext.txt");
-	//files.push_back("./english.50MB");
+	files.push_back("./testtext.txt");
+	files.push_back("./english.50MB");
 	files.push_back("./dna.50MB");
-	//files.push_back("./dblp.xml.50MB");
-	//files.push_back("./proteins.50MB");
-	//files.push_back("./sources.50MB");
+	files.push_back("./dblp.xml.50MB");
+	files.push_back("./proteins.50MB");
+	files.push_back("./sources.50MB");
 	
 	std::cout << "text, tau, max_leaf_size, bt base, leaves, entropy leaves, bt entropy, bt wavelet\n";
-	for (int32_t maxLS = 4; maxLS <= 4; maxLS *= 2) {
-		for (int32_t tau = 4; tau <= 4; tau *= 2) {
+	for (int32_t maxLS = 2; maxLS <= 64; maxLS *= 2) {
+		for (int32_t tau = 2; tau <= 8; tau *= 2) {
 			for (auto s : files) {
 				measure_for_text(s, tau, maxLS, true);
 			}
 		}
 	}
-	
-	/*
-	std::ifstream file("./dna.50MB");
-	std::ostringstream ss;
-	ss << file.rdbuf();
-	const std::string& s = ss.str();
-	std::vector<uint8_t> text(s.begin(), s.end());
-
-	size_t sample_pos = 0;
-
-	pasta::HuffmanCode<uint8_t,size_t>* code = new pasta::HuffmanCode<uint8_t,size_t>(text,sample_pos);
-
-	for(size_t i = 0; i < code->decode_table.size(); i++) {
-		std::cout << "Index " << i << ": " << code->decode_table[i].letter << " with bit length " << (int) code->decode_table[i].code_word_length << "\n";
-	}
-
-	std::cout << "Space of HuffmanCode without sampels: " << code->print_space_usage_without_sampels() << "\n";
-
-	std::vector<uint8_t>* output = code->decode(0, text.size());
-
-	for (size_t i = 0; i < text.size(); i++) {
-		if (text[i] != output->at(i)) throw std::runtime_error("huffman failed");
-	}
-	*/
   
   return 0;
 }
