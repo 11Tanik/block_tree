@@ -14,7 +14,7 @@
 #include <pasta/block_tree/construction/block_tree_lpf.hpp>
 #include <sdsl/wavelet_trees.hpp>
 
-bool check_correct = false;
+bool check_correct = true;
 
 double calculate_entropy(std::vector<uint8_t> text) {
 	std::vector<int32_t> freqs;
@@ -98,11 +98,11 @@ int32_t main()
 
 	std::vector<std::string> files;
 	files.push_back("./testtext.txt");
-	files.push_back("./english.50MB");
-	files.push_back("./dna.50MB");
-	files.push_back("./dblp.xml.50MB");
-	files.push_back("./proteins.50MB");
-	files.push_back("./sources.50MB");
+	//files.push_back("./english.50MB");
+	//files.push_back("./dna.50MB");
+	//files.push_back("./dblp.xml.50MB");
+	//files.push_back("./proteins.50MB");
+	//files.push_back("./sources.50MB");
 	
 	std::cout << "text, tau, max_leaf_size, bt base, leaves, entropy leaves, bt entropy, bt wavelet\n";
 	for (int32_t maxLS = 2; maxLS <= 64; maxLS *= 2) {

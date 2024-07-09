@@ -205,98 +205,6 @@ public:
     return s + l;
   }
 
-  int64_t rank_base(input_type c, size_type index) {
-	throw std::runtime_error("rank_base is currently not supported (why is it even here?)");
-    pasta::BitVector &top_level = *block_tree_types_[0];
-    auto &top_level_rs = *block_tree_types_rs_[0];
-    auto &top_level_ptr = *block_tree_pointers_[0];
-    auto &top_level_off = *block_tree_offsets_[0];
-    int64_t c_index = chars_index_[c];
-    int64_t block_size = block_size_lvl_[0];
-    int64_t blk_pointer = index / block_size;
-    int64_t off = index % block_size;
-    int64_t rank =
-        (blk_pointer == 0) ? 0 : c_ranks_[c_index][0][blk_pointer - 1];
-    int64_t child = 0;
-    if (top_level[blk_pointer]) {
-      block_size /= tau_;
-      child = off / block_size;
-      off = off % block_size;
-      blk_pointer = top_level_rs.rank1(blk_pointer) * tau_ + child;
-    } else {
-      size_type blk = top_level_rs.rank0(blk_pointer);
-      rank -= pointer_c_ranks_[c_index][0][blk];
-      size_type to = off + top_level_off[blk];
-      off = off + top_level_off[blk];
-      blk_pointer = top_level_ptr[blk];
-      child = blk_pointer;
-      if (to >= block_size) {
-        int64_t adder = (child == 0)
-                            ? c_ranks_[c_index][0][blk_pointer]
-                            : c_ranks_[c_index][0][blk_pointer] -
-                                  c_ranks_[c_index][0][blk_pointer - 1];
-        rank += adder;
-        blk_pointer++;
-        off = to - block_size;
-      }
-      block_size = block_size / tau_;
-      child = off / block_size;
-      off = off % block_size;
-      blk_pointer = top_level_rs.rank1(blk_pointer) * tau_ + child;
-    }
-    // we first calculate the
-    uint64_t i = 1;
-    while (i < block_tree_types_.size()) {
-      rank += (child == 0) ? 0 : c_ranks_[c_index][i][blk_pointer - 1];
-      if ((*block_tree_types_[i])[blk_pointer]) {
-        size_type rank_blk = block_tree_types_rs_[i]->rank1(blk_pointer);
-        block_size /= tau_;
-        child = off / block_size;
-        off = off % block_size;
-        blk_pointer = rank_blk * tau_ + child;
-        i++;
-      } else {
-        size_type blk = block_tree_types_rs_[i]->rank0(blk_pointer);
-        rank -= pointer_c_ranks_[c_index][i][blk];
-        size_type ptr_off = (*block_tree_offsets_[i])[blk];
-        size_type to = off + ptr_off;
-        off = off + ptr_off;
-        blk_pointer = (*block_tree_pointers_[i])[blk];
-        child = blk_pointer % tau_;
-
-        if (to >= block_size) {
-          auto adder = (child == 0) ? c_ranks_[c_index][i][blk_pointer]
-                                    : c_ranks_[c_index][i][blk_pointer] -
-                                          c_ranks_[c_index][i][blk_pointer - 1];
-          rank += adder;
-          blk_pointer++;
-          child = blk_pointer % tau_;
-          off = to - block_size;
-        }
-        auto remove_prefix =
-            (child == 0) ? 0 : c_ranks_[c_index][i][blk_pointer - 1];
-        rank -= remove_prefix;
-      }
-    }
-	size_type prefix_leaves = blk_pointer - child;
-	if (leaves_are_wt) {
-		size_type rank_at_offset = wavelet_leaves.rank(blk_pointer * leaf_size + off, c);
-		size_type rank_at_start = wavelet_leaves.rank(prefix_leaves * leaf_size, c);
-		rank += (rank_at_offset - rank_at_start);
-	} else {
-		for (int j = 0; j < child * leaf_size; j++) {
-		if ((compressed_leaves_)[prefix_leaves * leaf_size + j] ==
-			compress_map_[c])
-			rank++;
-		}
-		for (int j = 0; j <= off; j++) {
-		if ((compressed_leaves_)[blk_pointer * leaf_size + j] == compress_map_[c])
-			rank++;
-		}
-	}
-    return rank;
-  }
-
   int64_t rank(input_type c, size_type index) {
     pasta::BitVector &top_level = *block_tree_types_[0];
     auto &top_level_rs = *block_tree_types_rs_[0];
@@ -332,7 +240,7 @@ public:
       off = off % block_size;
       blk_pointer = top_level_rs.rank1(blk_pointer) * tau_ + child;
     }
-    // we first calculate the
+    // we first calculate the (???)
     uint64_t i = 1;
     while (i < block_tree_types_.size()) {
       rank += (child == 0) ? 0 : c_ranks_[c_index][i][blk_pointer - 1];
@@ -436,8 +344,6 @@ public:
 	char filename[] = "/tmp/wavelet_tree_leaves_XXXXXX";
 	int fd = mkstemp(filename);
 	if (fd == -1) throw std::runtime_error("Could not create temporary file.");
-
-	std::cout << "Created tmp file at " << filename << "\n";
 
 	// uncompress leaves
 	leaves_.resize(compressed_leaves_.size());
