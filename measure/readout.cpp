@@ -13,6 +13,7 @@
 #include <pasta/block_tree/utils/huffman.hpp>
 #include <pasta/block_tree/construction/block_tree_lpf.hpp>
 #include <sdsl/wavelet_trees.hpp>
+#include <sdsl/int_vector.hpp>
 
 bool check_correct = true;
 
@@ -47,14 +48,6 @@ void measure_for_text(std::string filename, int32_t tau, int32_t max_leaf_length
 
 	// construct block tree
 	auto* bt = pasta::make_block_tree_lpf<uint8_t, int32_t>(text, tau, max_leaf_length, s_equal_z);
-	
-	// extract leaves
-	std::vector<uint8_t> leave_text = {};
-
-  	for (size_t i = 0; i < bt->compressed_leaves_.size(); ++i) {
-		uint8_t letter = bt->compressed_leaves_[i];
-		leave_text.push_back(letter);
-  	}
 
 	// check text for correctness
 	if (check_correct) {
@@ -64,17 +57,59 @@ void measure_for_text(std::string filename, int32_t tau, int32_t max_leaf_length
 		}
 	}
 
+	// look at pointers
+	/*
+	std::vector<std::vector<size_t>> distrib(bt->block_tree_pointers_.size(), std::vector<size_t>(64, 0));
+	size_t unnecessary_bits = 0;
+	size_t num_pointers = 0;
+	for (size_t l = 0; l < bt->block_tree_pointers_.size(); l++) {
+		auto &lvl = *bt->block_tree_pointers_[l];
+		size_t bytes = sdsl::size_in_bytes(lvl);
+
+		size_t width = (8*bytes) / lvl.size();
+		if (width > 64) std::cout << "illegal width " << width << "\n";
+		for (size_t e = 0; e < bt->block_tree_pointers_[l]->size(); e++) {
+			size_t ptr = lvl[e];
+			size_t nb = 1;
+			if (sizeof(ptr) >= 8u && (ptr >> 32u)) {nb += 32; ptr >>= 32u;}
+			if (sizeof(ptr) >= 4u && (ptr >> 16u)) {nb += 16; ptr >>= 16u;}
+			if (sizeof(ptr) >= 2u && (ptr >> 8u)) {nb += 8; ptr >>= 8u;}
+			if (ptr >> 4u) {nb += 4; ptr >>= 4u;}
+			if (ptr >> 2u) {nb += 2; ptr >>= 2u;}
+			if (ptr >> 1u) {nb += 1; ptr >>= 1u;}
+
+			if (width < nb || 0 >= nb) std::cout << "illegal nb " << nb << " for value " << lvl[e] << " and width " << width << "\n";
+
+			distrib[l][nb-1]++;
+
+			unnecessary_bits += (width - nb);
+
+			num_pointers++;
+		}
+	}
+	*/
+	//double avg_per_ptr = (double) unnecessary_bits / (double) num_pointers;
+	
+	// extract leaves
+	/*
+	std::vector<uint8_t> leave_text = {};
+  	for (size_t i = 0; i < bt->compressed_leaves_.size(); ++i) {
+		uint8_t letter = bt->compressed_leaves_[i];
+		leave_text.push_back(letter);
+  	}
+	*/
+
 	// calculate size
 	int64_t bt_base_space = bt->print_space_usage();
-	int64_t leaves_space = sdsl::size_in_bytes(bt->compressed_leaves_);
-	int64_t num_leave_chars = bt->compressed_leaves_.size();
+	//int64_t leaves_space = sdsl::size_in_bytes(bt->compressed_leaves_);
+	//int64_t num_leave_chars = bt->compressed_leaves_.size();
 
-	double leave_entropy = calculate_entropy(leave_text);
+	//double leave_entropy = calculate_entropy(leave_text);
 	//double text_entropy = calculate_entropy(text);
 
-	int64_t optimal_entropy_encoding = (leave_entropy * num_leave_chars) / 8.0;
+	//int64_t optimal_entropy_encoding = (leave_entropy * num_leave_chars) / 8.0;
 
-	int64_t bt_entropy_space = bt_base_space - leaves_space + optimal_entropy_encoding;
+	//int64_t bt_entropy_space = bt_base_space - leaves_space + optimal_entropy_encoding;
 
 	bt->huffman_compress_leaves();
 
@@ -87,33 +122,33 @@ void measure_for_text(std::string filename, int32_t tau, int32_t max_leaf_length
 
 	int64_t bt_wavelet_space = bt->print_space_usage();
 
-	std::cout << filename << ", " << tau << ", " << max_leaf_length << ", " << bt_base_space << ", " << leaves_space << ", " << optimal_entropy_encoding << ", " << bt_entropy_space << ", " << bt_wavelet_space << "\n";
+	std::cout << filename << ", " << tau << ", " << max_leaf_length << ", " << bt_base_space << ", " << bt_wavelet_space << "\n";
+
+	/*
+	for (size_t i = 0; i < distrib[0].size(); i++) {
+		std::cout << filename << ", " << bt->block_tree_types_[0]->size() << ", " << tau << ", " << max_leaf_length << ", " << bt_base_space;
+		for (size_t l = 0; l < bt->block_tree_pointers_.size(); l++) {
+			std::cout << ", " << distrib[l][i];
+		}
+		std::cout << "\n";
+	}
+	*/
 
   	// Clean-up
   	delete bt;
 }
 
-int32_t main()
+int32_t main(int argc, char* argv[])
 {
-
-	std::vector<std::string> files;
-	files.push_back("./testtext.txt");
-	//files.push_back("./english.50MB");
-	//files.push_back("./dna.50MB");
-	//files.push_back("./dblp.xml.50MB");
-	//files.push_back("./proteins.50MB");
-	//files.push_back("./sources.50MB");
+	if (argc != 2) throw std::runtime_error("No text given.");
+	std::string filename = argv[1];
 	
-	std::cout << "text, tau, max_leaf_size, bt base, leaves, entropy leaves, bt entropy, bt wavelet\n";
-	for (int32_t maxLS = 2; maxLS <= 64; maxLS *= 2) {
-		for (int32_t tau = 2; tau <= 8; tau *= 2) {
-			for (auto s : files) {
-				measure_for_text(s, tau, maxLS, true);
-			}
+	std::cout << "text, tau, max_leaf_size, size, wt_size\n";
+	for (int32_t maxLS = 4; maxLS <= 4; maxLS *= 2) {
+		for (int32_t tau = 2; tau <= 2; tau *= 2) {
+			measure_for_text(filename, tau, maxLS, true);
 		}
 	}
   
   return 0;
 }
-
-/******************************************************************************/
