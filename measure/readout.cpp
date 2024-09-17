@@ -191,8 +191,8 @@ int32_t main(int argc, char* argv[])
 	std::string filename = argv[1];
 	
 	std::cout << "text, entropy, tau, max_leaf_size, bt_construction, bt_access, bt_rank, bt_size, leaves_size, bt_wt_construction, bt_wt_access, bt_wt_rank, bt_wt_size, wt_size, num_leaves_chars, leaves_entropy\n";
-	for (int32_t maxLS = 4; maxLS <= 4; maxLS *= 2) {
-		for (int32_t tau = 2; tau <= 2; tau *= 2) {
+	for (int32_t maxLS = 2; maxLS <= 128; maxLS *= 2) {
+		for (int32_t tau = 2; tau <= 8; tau *= 2) {
 			measure_for_text(filename, tau, maxLS, true);
 		}
 	}
