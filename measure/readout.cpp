@@ -2,6 +2,11 @@
  * This file is for measuring the block trees
  ******************************************************************************/
 
+#include <chrono>
+#include <cstddef>
+#include <iomanip>
+#include <numeric>
+#include <vector>
 #include <string>
 #include <cstdint>
 #include <iostream>
@@ -38,6 +43,27 @@ double calculate_entropy(std::vector<uint8_t> text) {
 	return entropy * -1.0;
 }
 
+double calculate_entropy(sdsl::int_vector<> text) {
+	std::vector<int32_t> freqs;
+	freqs.resize(256);
+	for (size_t i = 0; i < 256; i++) {
+		freqs[i] = 0;
+	}
+
+	for (size_t i = 0; i < text.size(); i++) {
+		freqs[text[i]]++;
+	}
+
+	double entropy = 0;
+	for (size_t i = 0; i < 256; i++) {
+		if (freqs[i] == 0) continue;
+		double freq = (double) freqs[i] / (double) text.size();
+		entropy += freq * log2(freq);
+	}
+
+	return entropy * -1.0;
+}
+
 void measure_for_text(std::string filename, int32_t tau, int32_t max_leaf_length, bool s_equal_z) {
 	// read text
 	std::ifstream file(filename);
@@ -47,7 +73,11 @@ void measure_for_text(std::string filename, int32_t tau, int32_t max_leaf_length
 	std::vector<uint8_t> text(s.begin(), s.end());
 
 	// construct block tree
+	const auto start_bt_construction_time = std::chrono::steady_clock::now();
 	auto* bt = pasta::make_block_tree_lpf<uint8_t, int32_t>(text, tau, max_leaf_length, s_equal_z);
+	const auto end_bt_construction_time = std::chrono::steady_clock::now();
+
+	const auto bt_construction_time = std::chrono::duration_cast<std::chrono::microseconds>(end_bt_construction_time - start_bt_construction_time);
 
 	// check text for correctness
 	if (check_correct) {
@@ -57,61 +87,20 @@ void measure_for_text(std::string filename, int32_t tau, int32_t max_leaf_length
 		}
 	}
 
-	// look at pointers
-	/*
-	std::vector<std::vector<size_t>> distrib(bt->block_tree_pointers_.size(), std::vector<size_t>(64, 0));
-	size_t unnecessary_bits = 0;
-	size_t num_pointers = 0;
-	for (size_t l = 0; l < bt->block_tree_pointers_.size(); l++) {
-		auto &lvl = *bt->block_tree_pointers_[l];
-		size_t bytes = sdsl::size_in_bytes(lvl);
-
-		size_t width = (8*bytes) / lvl.size();
-		if (width > 64) std::cout << "illegal width " << width << "\n";
-		for (size_t e = 0; e < bt->block_tree_pointers_[l]->size(); e++) {
-			size_t ptr = lvl[e];
-			size_t nb = 1;
-			if (sizeof(ptr) >= 8u && (ptr >> 32u)) {nb += 32; ptr >>= 32u;}
-			if (sizeof(ptr) >= 4u && (ptr >> 16u)) {nb += 16; ptr >>= 16u;}
-			if (sizeof(ptr) >= 2u && (ptr >> 8u)) {nb += 8; ptr >>= 8u;}
-			if (ptr >> 4u) {nb += 4; ptr >>= 4u;}
-			if (ptr >> 2u) {nb += 2; ptr >>= 2u;}
-			if (ptr >> 1u) {nb += 1; ptr >>= 1u;}
-
-			if (width < nb || 0 >= nb) std::cout << "illegal nb " << nb << " for value " << lvl[e] << " and width " << width << "\n";
-
-			distrib[l][nb-1]++;
-
-			unnecessary_bits += (width - nb);
-
-			num_pointers++;
-		}
-	}
-	*/
-	//double avg_per_ptr = (double) unnecessary_bits / (double) num_pointers;
-	
-	// extract leaves
-	/*
-	std::vector<uint8_t> leave_text = {};
-  	for (size_t i = 0; i < bt->compressed_leaves_.size(); ++i) {
-		uint8_t letter = bt->compressed_leaves_[i];
-		leave_text.push_back(letter);
-  	}
-	*/
-
 	// calculate size
 	int64_t bt_base_space = bt->print_space_usage();
-	//int64_t leaves_space = sdsl::size_in_bytes(bt->compressed_leaves_);
-	//int64_t num_leave_chars = bt->compressed_leaves_.size();
+	int64_t leaves_space = sdsl::size_in_bytes(bt->compressed_leaves_);
+	int64_t num_leave_chars = bt->compressed_leaves_.size();
 
-	//double leave_entropy = calculate_entropy(leave_text);
-	//double text_entropy = calculate_entropy(text);
+	double leave_entropy = calculate_entropy(bt->compressed_leaves_);
+	double text_entropy = calculate_entropy(text);
 
-	//int64_t optimal_entropy_encoding = (leave_entropy * num_leave_chars) / 8.0;
-
-	//int64_t bt_entropy_space = bt_base_space - leaves_space + optimal_entropy_encoding;
-
+	// compress leaves with wavelet tree
+	auto start_bt_wt_construction_time = std::chrono::steady_clock::now();
 	bt->huffman_compress_leaves();
+	auto end_bt_wt_construction_time = std::chrono::steady_clock::now();
+
+	const auto bt_wt_construction_time = std::chrono::duration_cast<std::chrono::microseconds>(end_bt_wt_construction_time - start_bt_wt_construction_time);
 
 	if (check_correct) {
 		for (size_t i = 0; i < text.size(); ++i) {
@@ -121,18 +110,21 @@ void measure_for_text(std::string filename, int32_t tau, int32_t max_leaf_length
 	}
 
 	int64_t bt_wavelet_space = bt->print_space_usage();
+	int64_t wt_space = sdsl::size_in_bytes(bt->wavelet_leaves);
 
-	std::cout << filename << ", " << tau << ", " << max_leaf_length << ", " << bt_base_space << ", " << bt_wavelet_space << "\n";
-
-	/*
-	for (size_t i = 0; i < distrib[0].size(); i++) {
-		std::cout << filename << ", " << bt->block_tree_types_[0]->size() << ", " << tau << ", " << max_leaf_length << ", " << bt_base_space;
-		for (size_t l = 0; l < bt->block_tree_pointers_.size(); l++) {
-			std::cout << ", " << distrib[l][i];
-		}
-		std::cout << "\n";
-	}
-	*/
+	std::cout << filename
+			<< ", " << text_entropy
+			<< ", " << tau
+			<< ", " << max_leaf_length
+			<< ", " << bt_construction_time.count()
+			<< ", " << bt_wt_construction_time.count()
+			<< ", " << bt_base_space
+			<< ", " << leaves_space
+			<< ", " << bt_wavelet_space
+			<< ", " << wt_space
+			<< ", " << num_leave_chars
+			<< ", " << leave_entropy
+			<< "\n";
 
   	// Clean-up
   	delete bt;
@@ -143,7 +135,7 @@ int32_t main(int argc, char* argv[])
 	if (argc != 2) throw std::runtime_error("No text given.");
 	std::string filename = argv[1];
 	
-	std::cout << "text, tau, max_leaf_size, size, wt_size\n";
+	std::cout << "text, entropy, tau, max_leaf_size, bt_construction, bt_wt_construction, bt_size, leaves_size, bt_wt_size, wt_size, num_leaves_chars, leaves_entropy\n";
 	for (int32_t maxLS = 4; maxLS <= 4; maxLS *= 2) {
 		for (int32_t tau = 2; tau <= 2; tau *= 2) {
 			measure_for_text(filename, tau, maxLS, true);
