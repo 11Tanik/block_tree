@@ -21,6 +21,9 @@
 #include <sdsl/int_vector.hpp>
 
 bool check_correct = true;
+std::random_device dev;
+std::mt19937 rng(dev());
+const int64_t repetitions = 10000;
 
 double calculate_entropy(std::vector<uint8_t> text) {
 	std::vector<int32_t> freqs;
@@ -64,6 +67,48 @@ double calculate_entropy(sdsl::int_vector<> text) {
 	return entropy * -1.0;
 }
 
+int64_t time_access(pasta::BlockTreeLPF<uint8_t,int32_t>* bt, size_t max) {
+	rng.seed(4389762);
+    std::uniform_int_distribution<std::mt19937::result_type>  access_dist(0, max-1);
+
+	std::vector<size_t> pos(repetitions);
+
+	for (size_t i = 0; i < max; i++) {
+		pos.push_back(access_dist(rng));
+	}
+
+	const auto start_access_time = std::chrono::steady_clock::now();
+	for (size_t i = 0; i < pos.size(); i++) {
+		bt->access(pos[i]);
+	}
+	const auto end_access_time = std::chrono::steady_clock::now();
+	const auto access_time = std::chrono::duration_cast<std::chrono::microseconds>(end_access_time - start_access_time);
+	return access_time.count() / repetitions;
+}
+
+int64_t time_rank(pasta::BlockTreeLPF<uint8_t,int32_t>* bt, size_t max) {
+	rng.seed(4389762);
+    std::uniform_int_distribution<std::mt19937::result_type>  rank_dist(0, max-1);
+	std::uniform_int_distribution<std::mt19937::result_type>  symbol_dist(0, 255);
+
+	std::vector<size_t> pos(repetitions);
+	std::vector<uint8_t> symbols(repetitions);
+
+	for (size_t i = 0; i < max; i++) {
+		pos.push_back(rank_dist(rng));
+		symbols.push_back(symbol_dist(rng));
+	}
+
+	const auto start_rank_time = std::chrono::steady_clock::now();
+	for (size_t i = 0; i < pos.size(); i++) {
+		bt->rank(symbols[i],pos[i]);
+	}
+	const auto end_rank_time = std::chrono::steady_clock::now();
+	const auto rank_time = std::chrono::duration_cast<std::chrono::microseconds>(end_rank_time - start_rank_time);
+	return rank_time.count() / repetitions;
+
+}
+
 void measure_for_text(std::string filename, int32_t tau, int32_t max_leaf_length, bool s_equal_z) {
 	// read text
 	std::ifstream file(filename);
@@ -95,6 +140,9 @@ void measure_for_text(std::string filename, int32_t tau, int32_t max_leaf_length
 	double leave_entropy = calculate_entropy(bt->compressed_leaves_);
 	double text_entropy = calculate_entropy(text);
 
+	int64_t bt_access_time = time_access(bt, text.size());
+	int64_t bt_rank_time = time_rank(bt, text.size());
+
 	// compress leaves with wavelet tree
 	auto start_bt_wt_construction_time = std::chrono::steady_clock::now();
 	bt->huffman_compress_leaves();
@@ -112,14 +160,21 @@ void measure_for_text(std::string filename, int32_t tau, int32_t max_leaf_length
 	int64_t bt_wavelet_space = bt->print_space_usage();
 	int64_t wt_space = sdsl::size_in_bytes(bt->wavelet_leaves);
 
+	int64_t bt_wt_access_time = time_access(bt, text.size());
+	int64_t bt_wt_rank_time = time_rank(bt, text.size());
+
 	std::cout << filename
 			<< ", " << text_entropy
 			<< ", " << tau
 			<< ", " << max_leaf_length
 			<< ", " << bt_construction_time.count()
-			<< ", " << bt_wt_construction_time.count()
+			<< ", " << bt_access_time
+			<< ", " << bt_rank_time
 			<< ", " << bt_base_space
 			<< ", " << leaves_space
+			<< ", " << bt_wt_construction_time.count()
+			<< ", " << bt_wt_access_time
+			<< ", " << bt_wt_rank_time
 			<< ", " << bt_wavelet_space
 			<< ", " << wt_space
 			<< ", " << num_leave_chars
@@ -135,7 +190,7 @@ int32_t main(int argc, char* argv[])
 	if (argc != 2) throw std::runtime_error("No text given.");
 	std::string filename = argv[1];
 	
-	std::cout << "text, entropy, tau, max_leaf_size, bt_construction, bt_wt_construction, bt_size, leaves_size, bt_wt_size, wt_size, num_leaves_chars, leaves_entropy\n";
+	std::cout << "text, entropy, tau, max_leaf_size, bt_construction, bt_access, bt_rank, bt_size, leaves_size, bt_wt_construction, bt_wt_access, bt_wt_rank, bt_wt_size, wt_size, num_leaves_chars, leaves_entropy\n";
 	for (int32_t maxLS = 4; maxLS <= 4; maxLS *= 2) {
 		for (int32_t tau = 2; tau <= 2; tau *= 2) {
 			measure_for_text(filename, tau, maxLS, true);
