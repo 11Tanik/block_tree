@@ -20,7 +20,7 @@
 #include <sdsl/wavelet_trees.hpp>
 #include <sdsl/int_vector.hpp>
 
-bool check_correct = true;
+bool check_correct = false;
 std::random_device dev;
 std::mt19937 rng(dev());
 const int64_t repetitions = 10000;
@@ -141,7 +141,7 @@ void measure_for_text(std::string filename, int32_t tau, int32_t max_leaf_length
 	double text_entropy = calculate_entropy(text);
 
 	int64_t bt_access_time = time_access(bt, text.size());
-	int64_t bt_rank_time = time_rank(bt, text.size());
+	//int64_t bt_rank_time = time_rank(bt, text.size());
 
 	// compress leaves with wavelet tree
 	auto start_bt_wt_construction_time = std::chrono::steady_clock::now();
@@ -161,20 +161,21 @@ void measure_for_text(std::string filename, int32_t tau, int32_t max_leaf_length
 	int64_t wt_space = sdsl::size_in_bytes(bt->wavelet_leaves);
 
 	int64_t bt_wt_access_time = time_access(bt, text.size());
-	int64_t bt_wt_rank_time = time_rank(bt, text.size());
+	//int64_t bt_wt_rank_time = time_rank(bt, text.size());
 
 	std::cout << filename
 			<< ", " << text_entropy
 			<< ", " << tau
 			<< ", " << max_leaf_length
+			<< ", " << s_equal_z
 			<< ", " << bt_construction_time.count()
 			<< ", " << bt_access_time
-			<< ", " << bt_rank_time
+			//<< ", " << bt_rank_time
 			<< ", " << bt_base_space
 			<< ", " << leaves_space
 			<< ", " << bt_wt_construction_time.count()
 			<< ", " << bt_wt_access_time
-			<< ", " << bt_wt_rank_time
+			//<< ", " << bt_wt_rank_time
 			<< ", " << bt_wavelet_space
 			<< ", " << wt_space
 			<< ", " << num_leave_chars
@@ -190,10 +191,11 @@ int32_t main(int argc, char* argv[])
 	if (argc != 2) throw std::runtime_error("No text given.");
 	std::string filename = argv[1];
 	
-	std::cout << "text, entropy, tau, max_leaf_size, bt_construction, bt_access, bt_rank, bt_size, leaves_size, bt_wt_construction, bt_wt_access, bt_wt_rank, bt_wt_size, wt_size, num_leaves_chars, leaves_entropy\n";
-	for (int32_t maxLS = 2; maxLS <= 128; maxLS *= 2) {
+	std::cout << "text, entropy, tau, max_leaf_size, s_euqal_z, bt_construction, bt_access, bt_size, leaves_size, bt_wt_construction, bt_wt_access, bt_wt_size, wt_size, num_leaves_chars, leaves_entropy\n";
+	for (int32_t maxLS = 2; maxLS <= 32; maxLS *= 2) {
 		for (int32_t tau = 2; tau <= 8; tau *= 2) {
 			measure_for_text(filename, tau, maxLS, true);
+			measure_for_text(filename, tau, maxLS, false);
 		}
 	}
   
